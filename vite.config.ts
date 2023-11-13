@@ -1,6 +1,6 @@
 import { routes } from '@qwik-city-plan';
 import { PluginOption, defineConfig, Plugin, } from "vite";
-import { QwikVitePlugin, qwikVite } from "@builder.io/qwik/optimizer";
+import { QwikBuildTarget, QwikVitePlugin, qwikVite } from "@builder.io/qwik/optimizer";
 import { QwikCityPlugin, qwikCity } from "@builder.io/qwik-city/vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import path from "node:path";
@@ -40,32 +40,39 @@ export function qwikPwa(): PluginOption {
   let rootDir: string | null = null
   let outDir: string | null = null;
   let publicDir: string | null = null;
-  let clientOut
+  let target: QwikBuildTarget | null = null;
 
   // make the type an argument of the generateBundle function
   let bundle: OutputBundle
 
-  return [{
+  let clientOutDir: string 
+  let basePathRelDir: string
+  let clientOutBaseDir: string
+  let swClientDistPath: string
+
+  return [
+    {
+      name: 'qwik-pwa-mutual',
+      enforce: 'post',
+      configResolved(config) {
+        rootDir = path.resolve(config.root);
+        qwikPlugin = config.plugins.find((p) => p.name === 'vite-plugin-qwik') as QwikVitePlugin;
+        qwikCityPlugin = config.plugins.find(
+          (p) => p.name === 'vite-plugin-qwik-city'
+        ) as QwikCityPlugin;
+        target = qwikPlugin!.api.getOptions().target
+        publicDir = config.publicDir;
+        outDir = config.build?.outDir;
+
+        clientOutDir = qwikPlugin!.api.getClientOutDir()!;
+        basePathRelDir = qwikCityPlugin!.api.getBasePathname().replace(/^\/|\/$/, '');
+        clientOutBaseDir = path.join(clientOutDir, basePathRelDir);
+        swClientDistPath = path.join(clientOutBaseDir, 'service-worker.js');
+      },
+    },
+    {
     name: 'qwik-pwa',
     enforce: 'post',
-    apply(config, env) {
-      if (env.ssrBuild) {
-        return false
-      }
-      return true
-    },
-    configResolved(config) {
-      rootDir = path.resolve(config.root);
-      qwikPlugin = config.plugins.find((p) => p.name === 'vite-plugin-qwik') as QwikVitePlugin;
-      qwikCityPlugin = config.plugins.find(
-        (p) => p.name === 'vite-plugin-qwik-city'
-      ) as QwikCityPlugin;
-      if (!qwikPlugin) {
-        throw new Error('Missing vite-plugin-qwik');
-      }
-      publicDir = config.publicDir;
-      outDir = config.build?.outDir;
-    },
     generateBundle(_, _bundle) {
       bundle = _bundle
     },
@@ -73,20 +80,14 @@ export function qwikPwa(): PluginOption {
       sequential: true,
       order: 'post',
       async handler() {
-        if (!publicDir) {
-          // skip in SSG when publicDir is ""
+        if (target !== 'client') {
           return
         }
-        const clientOutDir = qwikPlugin!.api.getClientOutDir()!;
-        const basePathRelDir = qwikCityPlugin!.api.getBasePathname().replace(/^\/|\/$/, '');
-        const clientOutBaseDir = path.join(clientOutDir, basePathRelDir);
-
         const publicDirAssets = await fg.glob('**/*' , {cwd: publicDir!})
         // the q-*.js files are going to be handled by qwik itself
         const emittedAssets = Object.keys(bundle).filter((key) => !/.*q-.*\.js$/.test(key))
         
         const routes = qwikCityPlugin!.api.getRoutes().map((route) => route.pathname)
-        const swClientDistPath = path.join(clientOutBaseDir, 'service-worker.js');
         const swCode = await fs.readFile(swClientDistPath, 'utf-8');
         const swCodeUpdate = `
         const publicDirAssets = ${JSON.stringify(publicDirAssets)};
@@ -101,27 +102,13 @@ export function qwikPwa(): PluginOption {
   }, {
     name: 'qwik-pwa-ssr',
     enforce: 'post',
-    apply(config, env) {
-      if (env.ssrBuild) {
-        return true
-      }
-      return false
-    },
-    configResolved(config) {
-      qwikPlugin = config.plugins.find((p) => p.name === 'vite-plugin-qwik') as QwikVitePlugin;
-      qwikCityPlugin = config.plugins.find(
-        (p) => p.name === 'vite-plugin-qwik-city'
-      ) as QwikCityPlugin;
-    },
     closeBundle: {
       sequential: true,
       order: 'post',
       async handler() {
-
-        const clientOutDir = qwikPlugin!.api.getClientOutDir()!;
-        const basePathRelDir = qwikCityPlugin!.api.getBasePathname().replace(/^\/|\/$/, '');
-        const clientOutBaseDir = path.join(clientOutDir, basePathRelDir);
-        const swClientDistPath = path.join(clientOutBaseDir, 'service-worker.js');
+        if (target !== 'ssr') {
+          return
+        }
         const swCode = await fs.readFile(swClientDistPath, 'utf-8');
         const manifest = qwikPlugin!.api.getManifest()
         const swCodeUpdate = `
