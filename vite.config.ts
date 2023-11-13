@@ -73,6 +73,10 @@ export function qwikPwa(): PluginOption {
       sequential: true,
       order: 'post',
       async handler() {
+        if (!publicDir) {
+          // skip in SSG when publicDir is ""
+          return
+        }
         const clientOutDir = qwikPlugin!.api.getClientOutDir()!;
         const basePathRelDir = qwikCityPlugin!.api.getBasePathname().replace(/^\/|\/$/, '');
         const clientOutBaseDir = path.join(clientOutDir, basePathRelDir);
@@ -80,15 +84,14 @@ export function qwikPwa(): PluginOption {
         const publicDirAssets = await fg.glob('**/*' , {cwd: publicDir!})
         // the q-*.js files are going to be handled by qwik itself
         const emittedAssets = Object.keys(bundle).filter((key) => !/.*q-.*\.js$/.test(key))
+        
         const routes = qwikCityPlugin!.api.getRoutes().map((route) => route.pathname)
-        const manifest = qwikPlugin!.api.getManifest()
         const swClientDistPath = path.join(clientOutBaseDir, 'service-worker.js');
         const swCode = await fs.readFile(swClientDistPath, 'utf-8');
         const swCodeUpdate = `
         const publicDirAssets = ${JSON.stringify(publicDirAssets)};
         const emittedAssets = ${JSON.stringify(emittedAssets)};
         const routes = ${JSON.stringify(routes)};
-        const manifest = ${JSON.stringify(manifest)};
         
         ${swCode}
         `
