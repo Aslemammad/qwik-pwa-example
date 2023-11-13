@@ -87,12 +87,13 @@ export function qwikPwa(): PluginOption {
         // the q-*.js files are going to be handled by qwik itself
         const emittedAssets = Object.keys(bundle).filter((key) => !/.*q-.*\.js$/.test(key))
         
-        const routes = qwikCityPlugin!.api.getRoutes().map((route) => route.pathname)
+        const routes = qwikCityPlugin!.api.getRoutes()
+        console.log(qwikCityPlugin!.api.getRoutes())
         const swCode = await fs.readFile(swClientDistPath, 'utf-8');
         const swCodeUpdate = `
         const publicDirAssets = ${JSON.stringify(publicDirAssets)};
         const emittedAssets = ${JSON.stringify(emittedAssets)};
-        const routes = ${JSON.stringify(routes)};
+        const routes = [${routes.map(route => `{ pathname: ${JSON.stringify(route.pathname)}, pattern: new RegExp(${JSON.stringify(route.pattern.source)}) }`).join(',\n')}];
         
         ${swCode}
         `

@@ -9,16 +9,30 @@
  */
 import { setupServiceWorker } from "@builder.io/qwik-city/service-worker";
 import type { PrecacheEntry } from "workbox-precaching";
-import { createHandlerBoundToURL, precacheAndRoute } from "workbox-precaching";
+import {
+  cleanupOutdatedCaches,
+  createHandlerBoundToURL,
+  precacheAndRoute,
+} from "workbox-precaching";
 
 import { NavigationRoute, registerRoute } from "workbox-routing";
 
 const assets = [...publicDirAssets, ...emittedAssets];
 
-precacheAndRoute(urlsToEntries([...routes, ...assets], manifestHash));
+cleanupOutdatedCaches();
+
+precacheAndRoute(
+  urlsToEntries([...routes.map((r) => r.pathname), ...assets], manifestHash)
+);
 
 // should be registered after precacheAndRoute
-registerRoute(new NavigationRoute(createHandlerBoundToURL('/')));
+for (const route of routes) {
+  registerRoute(
+    new NavigationRoute(createHandlerBoundToURL(route.pathname), {
+      allowlist: [route.pattern],
+    })
+  );
+}
 
 setupServiceWorker();
 
@@ -31,7 +45,7 @@ const qprefetchEvent = new MessageEvent<ServiceWorkerMessage>("message", {
   data: {
     type: "qprefetch",
     base,
-    links: routes,
+    links: routes.map((route) => route.pathname),
     bundles: appBundles.map((appBundle) => appBundle[0]),
   },
 });
@@ -39,16 +53,16 @@ const qprefetchEvent = new MessageEvent<ServiceWorkerMessage>("message", {
 self.dispatchEvent(qprefetchEvent);
 
 function urlsToEntries(urls: string[], hash: string): PrecacheEntry[] {
-  const matcher = /^build\/q-([a-f0-9]{8})\./
+  const matcher = /^build\/q-([a-f0-9]{8})\./;
   return urls.map((url) => {
     // we should think about enabling this https://github.com/GoogleChrome/workbox/issues/2024
     // revision: hash
-    const match = url.match(matcher)
+    const match = url.match(matcher);
     return {
       url,
       revision: `${match ? match[1] : hash}`,
-    }
-  })
+    };
+  });
 }
 
 declare const self: ServiceWorkerGlobalScope;
@@ -86,5 +100,5 @@ declare const linkBundles: LinkBundle[];
 
 declare const publicDirAssets: string[];
 declare const emittedAssets: string[];
-declare const routes: string[];
+declare const routes: { pathname: string; pattern: RegExp }[];
 declare const manifestHash: string;
