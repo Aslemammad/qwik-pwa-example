@@ -13,7 +13,6 @@ import { createHandlerBoundToURL, precacheAndRoute } from "workbox-precaching";
 
 import { NavigationRoute, registerRoute } from "workbox-routing";
 
-console.log(routes);
 const assets = [...publicDirAssets, ...emittedAssets];
 
 precacheAndRoute(urlsToEntries([...routes, ...assets], manifestHash));
