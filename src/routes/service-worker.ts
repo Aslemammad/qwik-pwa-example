@@ -9,22 +9,17 @@
  */
 import { setupServiceWorker } from "@builder.io/qwik-city/service-worker";
 import type { PrecacheEntry } from "workbox-precaching";
-import { getCacheKeyForURL, precacheAndRoute } from "workbox-precaching";
-import { CacheFirst, StaleWhileRevalidate } from "workbox-strategies";
+import { createHandlerBoundToURL, precacheAndRoute } from "workbox-precaching";
 
-import { registerRoute } from "workbox-routing";
+import { NavigationRoute, registerRoute } from "workbox-routing";
 
 console.log(routes);
 const assets = [...publicDirAssets, ...emittedAssets];
 
-registerRoute(
-  ({ url }) => routes.includes(url.pathname),
-  new StaleWhileRevalidate()
-);
-
-registerRoute(({ url }) => assets.includes(url.pathname), new CacheFirst());
-
 precacheAndRoute(urlsToEntries([...routes, ...assets], manifestHash));
+
+// should be registered after precacheAndRoute
+registerRoute(new NavigationRoute(createHandlerBoundToURL('/')));
 
 setupServiceWorker();
 
@@ -45,11 +40,16 @@ const qprefetchEvent = new MessageEvent<ServiceWorkerMessage>("message", {
 self.dispatchEvent(qprefetchEvent);
 
 function urlsToEntries(urls: string[], hash: string): PrecacheEntry[] {
-  return urls.map((url) => ({
-    url,
+  const matcher = /^build\/q-([a-f0-9]{8})\./
+  return urls.map((url) => {
     // we should think about enabling this https://github.com/GoogleChrome/workbox/issues/2024
     // revision: hash
-  }));
+    const match = url.match(matcher)
+    return {
+      url,
+      revision: `${match ? match[1] : hash}`,
+    }
+  })
 }
 
 declare const self: ServiceWorkerGlobalScope;
