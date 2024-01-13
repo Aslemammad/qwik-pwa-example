@@ -12,7 +12,7 @@ export default extendConfig(baseConfig, () => {
     },
     plugins: [
       staticAdapter({
-        origin: "https://qwik-pwa-example-32h.pages.dev",
+        origin: "https://qwik-pwa-example-32h.pages.dev/demo/todolist",
       }),
     ],
   };
