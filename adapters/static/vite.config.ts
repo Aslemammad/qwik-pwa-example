@@ -10,10 +10,10 @@ export default extendConfig(baseConfig, () => {
         input: ["@qwik-city-plan"],
       },
     },
-    // plugins: [
-    //   staticAdapter({
-    //     origin: "https://qwik-pwa-example-32h.pages.dev",
-    //   }),
-    // ],
+    plugins: [
+      staticAdapter({
+        origin: "https://qwik-pwa-example-32h.pages.dev",
+      }),
+    ],
   };
 });
